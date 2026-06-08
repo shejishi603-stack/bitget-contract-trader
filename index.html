@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>南溪合约交易系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,sans-serif;padding:30px;max-width:960px;margin:0 auto}
+h1{color:#58a6ff;font-size:28px;margin-bottom:8px}
+.sub{color:#8b949e;font-size:14px;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+.metric{text-align:center;padding:16px;background:#161b22;border:1px solid #30363d;border-radius:8px}
+.metric .l{font-size:12px;color:#8b949e}
+.metric .v{font-size:28px;font-weight:700}
+.g{color:#3fb950}.r{color:#f85149}.b{color:#58a6ff}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #21262d}
+th{color:#8b949e;font-weight:500;font-size:13px}
+.tag{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;margin:4px}
+.t1{background:#1a2a1a;color:#3fb950}.t2{background:#1a1a2a;color:#58a6ff}.t3{background:#2a1a1a;color:#ffa500}.t4{background:#2a1a2a;color:#a78bfa}
+.ft{text-align:center;color:#484f58;font-size:12px;margin-top:30px;padding-top:20px;border-top:1px solid #21262d}
+</style>
+</head>
+<body>
+<h1>南溪合约交易系统</h1>
+<p class="sub">Bitget AI Base Camp Hackathon S1 · Track 1 交易Agent</p>
+
+<div class="card">
+<div style="font-size:15px;line-height:1.8">
+<b>策略：</b>日线EMA(high/low,32)趋势通道定方向 → 4h MACD结构找时机 → OI/Vol吸筹加分 → 3.0底仓思维仓位管理<br>
+<b>风格：</b>只做多 · 5x杠杆 · 止盈止损完整闭环 · Powered by Bitget Agent Hub
+</div>
+</div>
+
+<div class="grid">
+<div class="metric"><div class="l">BTC实时价</div><div class="v b">$63,889</div><div class="l">24h 64,268/61,180</div></div>
+<div class="metric"><div class="l">合约持仓量</div><div class="v b">31,547 BTC</div><div class="l">Bitget USDT永续</div></div>
+<div class="metric"><div class="l">回测区间</div><div class="v g">2022-2025</div><div class="l">3年历史数据</div></div>
+<div class="metric"><div class="l">累计收益</div><div class="v g">335.4%</div><div class="l">30笔 胜率36.7%</div></div>
+</div>
+
+<div class="card"><h3 style="margin-bottom:12px">策略架构</h3>
+<table>
+<tr><th>层级</th><th>指标</th><th>作用</th><th>权重</th></tr>
+<tr><td>1 趋势通道</td><td>日线EMA(high/low,32)</td><td>定多空方向</td><td>核心</td></tr>
+<tr><td>2 结构检测</td><td>4h MACD钝化+拐头</td><td>找买卖时机</td><td>核心</td></tr>
+<tr><td>3 OI/Vol</td><td>持仓量/成交量比率</td><td>吸筹/出货确认</td><td>10%加分</td></tr>
+<tr><td>4 Skill Hub</td><td>技术分析交叉验证</td><td>AI增强决策</td><td>辅助</td></tr>
+</table>
+</div>
+
+<div class="card"><h3 style="margin-bottom:12px">仓位管理（3.0底仓思维）</h3>
+<table>
+<tr><th>状态</th><th>操作</th><th>仓位</th></tr>
+<tr><td>日线翻多</td><td>先建底仓</td><td>30%</td></tr>
+<tr><td>站稳确认/4h底结构/突破前高</td><td>加仓</td><td>50%</td></tr>
+<tr><td>顶结构出现</td><td>减仓止盈</td><td>30%</td></tr>
+<tr><td>趋势下+底结构</td><td>防守试仓</td><td>10%</td></tr>
+<tr><td>趋势翻空</td><td>全平止损</td><td>0%</td></tr>
+<tr><td>盈利100%</td><td>平30%锁利</td><td>-</td></tr>
+</table>
+</div>
+
+<div class="card"><h3 style="margin-bottom:12px">三年回测</h3>
+<table>
+<tr><th>区间</th><th>交易</th><th>胜率</th><th>收益</th></tr>
+<tr><td>2022-2025（日线简化）</td><td>30笔</td><td>36.7%</td><td class="g">335.4%</td></tr>
+<tr><td>2025.11至今（完整策略）</td><td>8笔</td><td>66.7%</td><td class="g">+37.6%</td></tr>
+</table>
+</div>
+
+<div class="card"><h3 style="margin-bottom:8px">技术栈</h3>
+<span class="tag t1"> Bitget REST API</span>
+<span class="tag t1"> Bitget 合约API</span>
+<span class="tag t2"> Bitget Skill Hub</span>
+<span class="tag t2"> MACD结构检测</span>
+<span class="tag t3"> OI/Vol吸筹</span>
+<span class="tag t4"> Python引擎</span>
+<span class="tag t1"> 3.0底仓思维</span>
+<span class="tag t2"> 决策日志</span>
+</div>
+
+<div class="card"><h3 style="margin-bottom:8px">项目链接</h3>
+<p style="color:#8b949e;line-height:1.8">
+ GitHub: <a href="https://github.com/shejishi603-stack/bitget-contract-trader" style="color:#58a6ff">shejishi603-stack/bitget-contract-trader</a><br>
+ 仪表盘: python -m streamlit run dashboard.py<br>
+ 策略出处: 炒币的猫 + 川沐OI/Vol理论<br>
+ 赛道: Track 1 交易Agent
+</p>
+</div>
+
+<div class="ft">Bitget AI Base Camp Hackathon S1 · 2026 · 南溪</div>
+</body>
+</html>
