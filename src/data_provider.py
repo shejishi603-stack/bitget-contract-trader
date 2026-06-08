@@ -4,7 +4,7 @@ Bitget Agent Hub 数据提供层
 - OI持仓量: Bitget合约API
 - 技术分析: datahub.noxiaohao.com MCP
 """
-import json, urllib.request, subprocess, re
+import json, urllib.request, subprocess, re, os
 import pandas as pd
 import numpy as np
 

@@ -15,6 +15,7 @@ from indicators import trend_channel, macd_structure, oi_signal
 from strategy import merge_daily_4h, generate_signals
 from bitget_account import BitgetAccount
 from backtest import BacktestEngine, run_backtest
+from ai_enhancer import ai_decision_layer, DecisionLogger
 
 st.set_page_config(
     page_title="南溪合约交易 · Bitget",
@@ -331,6 +332,20 @@ with tab1:
         stt = last.get('structure',0)
         d2.metric("结构", '🟢底' if stt==1 else '🔴顶' if stt==-1 else '无')
         d3.metric("DIF", f"{last.get('DIF',0):.0f}")
+
+    # AI增强决策层
+    st.markdown("---")
+    st.markdown("#### 🧠 AI增强决策")
+    try:
+        ai_result = ai_decision_layer(last)
+        c_map = {'HIGH': '🟢 高', 'MEDIUM': '🟡 中', 'LOW': '🔴 低'}
+        c1, c2, c3 = st.columns(3)
+        c1.metric("综合置信度", c_map.get(ai_result.get('confidence',''), '?'))
+        c2.metric("Skill Hub", ai_result.get('skill_hub',{}).get('signals',{}).get('verdict','?'))
+        c3.metric("建议", ai_result.get('recommendation', '?'))
+        st.caption(f"📝 {ai_result.get('explanation', '')}")
+    except:
+        pass
 
 # ═══════════════════════ TAB 2: 回测 ═══════════════════════
 with tab2:
