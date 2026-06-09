@@ -483,15 +483,61 @@ with tab1:
 
     # AI增强决策层
     st.markdown("---")
-    st.markdown("#### 🧠 AI增强决策")
+    st.markdown("#### 🧠 Agentic决策（感知→推理→决策→日志）")
+    
+    # 加载agentic trader的决策日志
+    import os, json as _json
+    log_file = "/mnt/c/Users/Administrator/Desktop/bitget-contract-trader/logs/agent_decisions.jsonl"
+    recent_decisions = []
+    if os.path.exists(log_file):
+        with open(log_file) as f:
+            for line in f:
+                recent_decisions.append(_json.loads(line))
+    
+    c1, c2, c3 = st.columns(3)
+    
+    if recent_decisions:
+        last_d = recent_decisions[-1]
+        c1.metric("决策次数", len(recent_decisions))
+        c2.metric("置信度", last_d.get('confidence', '?'))
+        c3.metric("MCP调用", len(last_d.get('mcp_calls', [])))
+        
+        st.markdown("**最近决策:**")
+        for d in recent_decisions[-3:]:
+            st.markdown(
+                f'<div class="signal-card" style="border-left-color:#a78bfa">'
+                f'<small class="gray">{d.get("timestamp","?")[:19]}</small><br>'
+                f'<b>🧠 操作: {d.get("final_action","?")}</b> | '
+                f'<span class="gray">置信度: {d.get("confidence","?")} | '
+                f'MCP: {len(d.get("mcp_calls",[]))}接口</span>'
+                f'</div>', unsafe_allow_html=True)
+        
+        # 思考链
+        thinking_file = "/mnt/c/Users/Administrator/Desktop/bitget-contract-trader/logs/agent_thinking.jsonl"
+        if os.path.exists(thinking_file):
+            with open(thinking_file) as f:
+                chains = [_json.loads(line) for line in f]
+            if chains:
+                last_chain = chains[-1]
+                with st.expander("🔍 查看最近思考链"):
+                    for step in last_chain.get('chain', ['无记录']):
+                        st.write(f"• {step}")
+                    if last_chain.get('mcp_calls'):
+                        st.write("**MCP接口调用:**")
+                        for call in last_chain['mcp_calls']:
+                            st.write(f"  ✓ {call}")
+    else:
+        c1.metric("决策次数", 0)
+        c2.metric("置信度", "N/A")
+        c3.metric("MCP调用", 0)
+        st.info("运行 agentic_trader.py 生成决策日志")
+    
+    # 补充AI增强验证
     try:
-        ai_result = ai_decision_layer(last)
-        c_map = {'HIGH': '🟢 高', 'MEDIUM': '🟡 中', 'LOW': '🔴 低'}
-        c1, c2, c3 = st.columns(3)
-        c1.metric("综合置信度", c_map.get(ai_result.get('confidence',''), '?'))
-        c2.metric("Skill Hub", ai_result.get('skill_hub',{}).get('signals',{}).get('verdict','?'))
-        c3.metric("建议", ai_result.get('recommendation', '?'))
-        st.caption(f"📝 {ai_result.get('explanation', '')}")
+        from ai_enhancer import ai_decision_layer
+        ai_result = ai_decision_layer(last) if 'last' in dir() else {}
+        if ai_result:
+            st.caption(f"📝 Skill Hub: {ai_result.get('skill_hub',{}).get('signals',{}).get('verdict','?')} | 建议: {ai_result.get('recommendation','?')}")
     except:
         pass
 
