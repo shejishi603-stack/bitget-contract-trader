@@ -18,8 +18,8 @@ from backtest import BacktestEngine, run_backtest
 from ai_enhancer import ai_decision_layer, DecisionLogger
 
 st.set_page_config(
-    page_title="南溪合约交易 · Bitget",
-    page_icon="📈",
+    page_title="南溪合约交易 · Bitget AI Hackathon S1",
+    page_icon="🏆",
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -95,6 +95,83 @@ st.markdown("""
         border-bottom-color: #58a6ff;
     }
     .stMetric { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px; }
+    .hackathon-header {
+        background: linear-gradient(135deg, #1a1a3e 0%, #0d3b66 50%, #0d1117 100%);
+        border: 2px solid #58a6ff;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 18px;
+    }
+    .hackathon-header h1 {
+        font-size: 22px;
+        font-weight: 800;
+        color: #fff;
+        margin: 0 0 6px 0;
+    }
+    .hackathon-header .subtitle {
+        font-size: 14px;
+        color: #8b949e;
+        margin: 0;
+    }
+    .hackathon-badge {
+        display: inline-block;
+        background: #58a6ff;
+        color: #0d1117;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 8px;
+    }
+    .pipeline {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0;
+    }
+    .pipeline-step {
+        flex: 1;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        position: relative;
+    }
+    .pipeline-step .step-num {
+        font-size: 10px;
+        color: #58a6ff;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+    .pipeline-step .step-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+        margin: 4px 0;
+    }
+    .pipeline-step .step-detail {
+        font-size: 11px;
+        color: #8b949e;
+        line-height: 1.4;
+    }
+    .pipeline-arrow {
+        display: flex;
+        align-items: center;
+        color: #58a6ff;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+    .deadline-banner {
+        background: #1a1a2e;
+        border: 1px solid #f0b90b;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-size: 12px;
+        color: #f0b90b;
+        margin-bottom: 12px;
+        text-align: center;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -162,6 +239,21 @@ with st.sidebar:
 
     # 数据源
     st.divider()
+    st.subheader("🏆 比赛信息")
+    st.markdown("""
+    <div class="deadline-banner" style="margin-top:8px">
+      <b>⏰ 提交截止：6月25日 24:00 (UTC+8)</b><br>
+      <span style="font-size:10px">报名截止：6月14日 | 提交窗口：6月15-25日 | 颁奖：6月30日</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("**提交清单：**")
+    st.markdown("- [x] Demo可运行")
+    st.markdown("- [x] 回测记录(2022-2025)")
+    st.markdown("- [x] 项目说明(200字)")
+    st.markdown("- [ ] 视频演示(选填)")
+    st.markdown("- [ ] 发帖带 #BitgetHackathon")
+    
+    st.divider()
     st.caption("📡 Bitget REST API")
     st.caption("🧠 Bitget Skill Hub")
     st.caption("📊 OI/Vol 吸筹检测")
@@ -170,30 +262,86 @@ with st.sidebar:
 @st.cache_data(ttl=300)
 def load_data():
     provider = BitgetDataProvider()
-    df_daily = provider.get_klines('BTCUSDT', '1day', 200)
-    df_daily = trend_channel(df_daily)
-    df_4h = provider.get_klines('BTCUSDT', '4h', 200)
-    df_4h = macd_structure(df_4h)
-    df_4h = oi_signal(df_4h)
-    df = merge_daily_4h(df_daily, df_4h)
-    signals, positions = generate_signals(df)
-    ticker = provider.get_ticker()
-    ta = provider.get_technical_analysis('BTC/USDT', '4h', 'full_analysis')
-    oi_value = provider.get_open_interest()
-    return df_daily, df_4h, df, signals, ticker, ta, oi_value
+    try:
+        df_daily = provider.get_klines('BTCUSDT', '1day', 200)
+        df_daily = trend_channel(df_daily)
+        df_4h = provider.get_klines('BTCUSDT', '4h', 200)
+        df_4h = macd_structure(df_4h)
+        df_4h = oi_signal(df_4h)
+        df = merge_daily_4h(df_daily, df_4h)
+        signals, positions = generate_signals(df)
+        ticker = provider.get_ticker()
+        ta = provider.get_technical_analysis('BTC/USDT', '4h', 'full_analysis')
+        oi_value = provider.get_open_interest()
+        return df_daily, df_4h, df, signals, ticker, ta, oi_value, None
+    except Exception as e:
+        st.warning(f"⚠️ API连接失败(Clash可能未开启): {str(e)[:80]}")
+        # 返回空数据
+        empty_df = pd.DataFrame()
+        return empty_df, empty_df, empty_df, empty_df, {}, {}, 0, str(e)
 
 with st.spinner("Bitget Agent Hub 数据加载中..."):
-    df_d, df_4h, df, signals, ticker, ta, oi_val = load_data()
+    df_d, df_4h, df, signals, ticker, ta, oi_val, api_error = load_data()
+    if api_error or df_d.empty:
+        st.error("⚠️ 无法连接Bitget API，请确认Clash代理已开启。")
+        st.info("开启Clash后点击🔄刷新按钮。")
+        st.stop()
     last = df.iloc[-1]
     last_signal = signals[signals['action'] != '']
 
-# ═══════════════════════ 策略一句话 ═══════════════════════
+# ═══════════════════════ 比赛头部 ═══════════════════════
+st.markdown("""
+<div class="hackathon-header">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+    <span class="hackathon-badge">🏆 Bitget AI Hackathon S1</span>
+    <span style="color:#8b949e;font-size:12px">赛道一 · 交易Agent</span>
+  </div>
+  <h1>🏗️ 南溪合约交易</h1>
+  <p class="subtitle">日线EMA趋势通道定方向 + 4h MACD结构找时机 + OI/Vol吸筹加分 · 只做多 · 5x杠杆 · BTC永续合约</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ═══════════════════════ 策略闭环可视化 ═══════════════════════
+st.markdown("""
+<div class="pipeline">
+  <div class="pipeline-step">
+    <div class="step-num">STEP 1</div>
+    <div class="step-title">🔍 感知</div>
+    <div class="step-detail">Bitget REST API<br>实时K线数据<br>日线+4h+OI/Vol</div>
+  </div>
+  <div class="pipeline-arrow">→</div>
+  <div class="pipeline-step">
+    <div class="step-num">STEP 2</div>
+    <div class="step-title">🧠 决策</div>
+    <div class="step-detail">日线趋势通道<br>MACD底部结构<br>OI吸筹确认<br>3.0状态机引擎</div>
+  </div>
+  <div class="pipeline-arrow">→</div>
+  <div class="pipeline-step">
+    <div class="step-num">STEP 3</div>
+    <div class="step-title">⚡ 执行</div>
+    <div class="step-detail">Bitget合约API<br>5x杠杆开多<br>底仓30%→满仓50%</div>
+  </div>
+  <div class="pipeline-arrow">→</div>
+  <div class="pipeline-step">
+    <div class="step-num">STEP 4</div>
+    <div class="step-title">🛡️ 风控</div>
+    <div class="step-detail">日线翻空止损<br>ATR动态止损<br>100%止盈平30%<br>钝化消失止损</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ═══════════════════════ 项目说明 ═══════════════════════
 st.markdown("""
 <div class="strategy-desc">
-<b>📐 策略：</b>日线EMA(high/low,32)趋势通道定方向 → 4h MACD结构找时机 → 
-OI/Vol吸筹加分 → 3.0底仓思维(30%→50%) + 移动止盈 · 
-<span class="green">只做多</span> · <span class="green">5x杠杆</span> · 
-<span style="color:#7a8ba0">Powered by Bitget Agent Hub</span>
+<b>📋 项目说明：</b>「南溪合约交易」是一个基于 Bitget Agent Hub 构建的 BTC 永续合约 AI 交易 Agent，
+参加 Bitget AI Base Camp Hackathon S1 赛道一（交易Agent）。<br><br>
+<b>解决的问题：</b>加密市场7×24小时运行，散户难以持续盯盘。本系统通过日线趋势通道+4h MACD结构+OI成交量
+三位一体的策略引擎，实现全自动感知→决策→执行→风控闭环。<br><br>
+<b>策略闭环：</b>①感知层通过 Bitget REST API 获取实时K线和OI数据；
+②决策层采用「炒币的猫」交易系统3.0底仓思维状态机（30%底仓→日线确认加满50%→顶结构减30%）；
+③执行层通过 Bitget 合约API下单，5倍杠杆只做多；
+④风控层多重止损（日线翻空/ATR/钝化消失）和100%止盈锁定利润。<br><br>
+<b>技术栈：</b>Python + Streamlit + Plotly + pandas-ta + Bitget Agent Hub（MCP Server + Skill Hub）。
 </div>
 """, unsafe_allow_html=True)
 
@@ -456,9 +604,9 @@ st.markdown("""
 <div class="footer-bar">
     <span class="footer-tag" style="background:#1a2a1a;color:#00d4aa">📡 Bitget REST API</span>
     <span class="footer-tag" style="background:#1a1a2a;color:#00a3ff">🧠 Bitget Skill Hub</span>
-    <span class="footer-tag" style="background:#2a1a1a;color:#ffa500">📊 VectorBT 回测引擎</span>
+    <span class="footer-tag" style="background:#2a1a2a;color:#ffa500">🏆 Bitget AI Hackathon S1</span>
     <span class="footer-tag" style="background:#1a1a2a;color:#a78bfa">🐍 Python 策略引擎</span>
-    <span class="footer-tag" style="background:#1a2a2a;color:#00d4aa">⚡ OI/Vol 吸筹检测</span>
+    <span class="footer-tag" style="background:#2a1a1a;color:#f0b90b">#BitgetHackathon</span>
 </div>
 """, unsafe_allow_html=True)
 

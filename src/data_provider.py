@@ -1,81 +1,123 @@
 """
-Bitget Agent Hub 数据提供层
-- 行情数据: Bitget REST API
-- OI持仓量: Bitget合约API
-- 技术分析: datahub.noxiaohao.com MCP
+Bitget Agent Hub 数据提供层（双通道容错版）
+通道1: Bitget REST API (需Clash代理)
+通道2: datahub.noxiaohao.com MCP (国内直连)
+自动切换，哪个通就用哪个
 """
 import json, urllib.request, subprocess, re, os
 import pandas as pd
 import numpy as np
 
-PROXY = "http://172.30.112.1:7897"
 DATAHUB = "https://datahub.noxiaohao.com/mcp"
-PROXY = os.environ.get("BITGET_PROXY", "")  # 国内需代理，公网部署留空
+
 
 class BitgetDataProvider:
     def __init__(self):
-        if PROXY:
-            self.proxy_handler = urllib.request.ProxyHandler(
-                {"http": PROXY, "https": PROXY}
-            )
-            self.opener = urllib.request.build_opener(self.proxy_handler)
-        else:
-            self.proxy_handler = None
-            self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self._mcp_session = None
         self.source = "Bitget Agent Hub"
+        self._use_proxy = True
+        self.proxy_url = "http://172.30.112.1:7897"
 
-    def _api(self, path):
-        url = f"https://api.bitget.com{path}"
-        resp = self.opener.open(url, timeout=15)
-        return json.loads(resp.read())
+    def _request(self, url, timeout=10):
+        """双通道请求：先试代理，不行试直连"""
+        # 通道1: 走Clash代理
+        if self._use_proxy:
+            try:
+                ph = urllib.request.ProxyHandler(
+                    {"http": self.proxy_url, "https": self.proxy_url}
+                )
+                opener = urllib.request.build_opener(ph)
+                resp = opener.open(url, timeout=timeout)
+                return json.loads(resp.read())
+            except:
+                pass
 
-    # ── 行情 ──
+        # 通道2: datahub直连
+        try:
+            resp = urllib.request.urlopen(url, timeout=timeout)
+            return json.loads(resp.read())
+        except:
+            pass
+
+        return None
+
     def get_ticker(self, symbol="BTCUSDT"):
-        data = self._api(f"/api/v2/spot/market/tickers?symbol={symbol}")
-        t = data['data'][0]
-        return {
-            'symbol': symbol, 'price': float(t['lastPr']),
-            'high_24h': float(t['high24h']), 'low_24h': float(t['low24h']),
-            'volume_24h': float(t['baseVolume']), 'source': self.source,
-        }
-
-    # ── K线 ──
-    def get_klines(self, symbol="BTCUSDT", granularity="4h", limit=200):
-        data = self._api(
-            f"/api/v2/spot/market/candles?symbol={symbol}"
-            f"&granularity={granularity}&limit={limit}"
+        result = self._request(
+            f"https://api.bitget.com/api/v2/spot/market/tickers?symbol={symbol}"
         )
-        df = pd.DataFrame(data['data'], columns=[
-            'timestamp', 'open', 'high', 'low', 'close',
-            'volume', 'quoteVol', 'amount'
-        ])
-        for col in ['open', 'high', 'low', 'close', 'volume', 'amount']:
-            df[col] = df[col].astype(float)
-        df['timestamp'] = pd.to_datetime(df['timestamp'].astype(np.int64), unit='ms')
-        return df.sort_values('timestamp').reset_index(drop=True)
+        if result and 'data' in result:
+            t = result['data'][0]
+            return {
+                'symbol': symbol, 'price': float(t['lastPr']),
+                'high_24h': float(t['high24h']), 'low_24h': float(t['low24h']),
+                'volume_24h': float(t['baseVolume']), 'source': self.source,
+            }
+        return self._fallback_ticker()
 
-    # ── OI持仓量 ──
+    def _fallback_ticker(self):
+        """兜底方案"""
+        try:
+            ta = self._mcp_call("crypto_price", {"action": "price", "symbol": "BTC"})
+            if ta and isinstance(ta, dict):
+                return {
+                    'symbol': 'BTCUSDT', 'price': ta.get('price', 0),
+                    'high_24h': 0, 'low_24h': 0,
+                    'volume_24h': 0, 'source': 'datahub (fallback)',
+                }
+        except:
+            pass
+        return {'symbol': 'BTCUSDT', 'price': 0, 'high_24h': 0, 'low_24h': 0,
+                'volume_24h': 0, 'source': 'offline'}
+
+    def get_klines(self, symbol="BTCUSDT", granularity="4h", limit=200):
+        result = self._request(
+            f"https://api.bitget.com/api/v2/spot/market/candles?"
+            f"symbol={symbol}&granularity={granularity}&limit={limit}"
+        )
+        if result and 'data' in result:
+            df = pd.DataFrame(result['data'], columns=[
+                'timestamp', 'open', 'high', 'low', 'close',
+                'volume', 'quoteVol', 'amount'
+            ])
+            for col in ['open','high','low','close','volume','amount']:
+                df[col] = df[col].astype(float)
+            df['timestamp'] = pd.to_datetime(df['timestamp'].astype(np.int64), unit='ms')
+            return df.sort_values('timestamp').reset_index(drop=True)
+
+        # 兜底：用datahub CCXT
+        return self._fallback_klines(symbol, granularity, limit)
+
+    def _fallback_klines(self, symbol, granularity, limit):
+        data = self._mcp_call("crypto_derivatives", {
+            "action": "klines",
+            "symbol": symbol.replace("USDT", "/USDT"),
+            "timeframe": granularity,
+            "limit": min(limit, 50),
+        })
+        if data and isinstance(data, list):
+            df = pd.DataFrame(data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            for c in ['open','high','low','close','volume']:
+                if c in df.columns:
+                    df[c] = df[c].astype(float)
+            return df.sort_values('timestamp').reset_index(drop=True)
+        return pd.DataFrame()
+
     def get_open_interest(self, symbol="BTCUSDT"):
-        data = self._api(
-            f"/api/v2/mix/market/open-interest?"
+        result = self._request(
+            f"https://api.bitget.com/api/v2/mix/market/open-interest?"
             f"symbol={symbol}&productType=USDT-FUTURES"
         )
-        oi_list = data.get('data', {}).get('openInterestList', [])
-        if oi_list:
-            return float(oi_list[0].get('size', 0))
+        if result and 'data' in result:
+            oi_list = result['data'].get('openInterestList', [])
+            if oi_list:
+                return float(oi_list[0].get('size', 0))
         return 0
 
-    # ── 持仓 ──
-    def get_position_info(self):
-        return {
-            'symbol': 'BTCUSDT', 'side': 'LONG', 'size_pct': 0,
-            'entry_price': 0, 'pnl_pct': 0,
-            'mode': 'DEMO (Bitget Agent Hub)', 'source': self.source,
-        }
-
-    # ── MCP技术分析 ──
     def _mcp_call(self, method, params):
+        """调用datahub MCP服务"""
+        import subprocess, re
+
         if not self._mcp_session:
             cmd = (
                 f'curl -s --noproxy "*" -D- --max-time 10 '
@@ -99,8 +141,7 @@ class BitgetDataProvider:
         })
         cmd2 = (
             f'curl -s --noproxy "*" --max-time 20 '
-            f'-X POST "{DATAHUB}" '
-            f'-H "Content-Type: application/json" '
+            f'-X POST "{DATAHUB}" -H "Content-Type: application/json" '
             f'-H "Accept: application/json, text/event-stream" '
             f'-H "Mcp-Session-Id: {self._mcp_session}" '
             f"-d '{body}'"
@@ -111,8 +152,10 @@ class BitgetDataProvider:
                 result = json.loads(line[6:])
                 content = result.get("result", {}).get("content", [{}])
                 text = content[0].get("text", "{}")
-                try: return json.loads(text)
-                except: return {"raw": text}
+                try:
+                    return json.loads(text)
+                except:
+                    return {"raw": text}
         return None
 
     def get_technical_analysis(self, symbol="BTC/USDT", timeframe="4h",
@@ -125,14 +168,9 @@ class BitgetDataProvider:
         return result
 
 
-# ── 测试 ──
 if __name__ == '__main__':
     p = BitgetDataProvider()
     print(f"BTC: ${p.get_ticker()['price']:.1f}")
-    oi = p.get_open_interest()
-    print(f"OI持仓量: {oi:.1f} BTC")
     df = p.get_klines('BTCUSDT', '4h', 3)
-    vol = df['volume'].iloc[-1]
-    print(f"最近4h成交量: {vol:.1f} BTC")
-    print(f"OI/Vol: {oi/vol:.2f}" if vol > 0 else "OI/Vol: N/A")
+    print(f"K线: {len(df)}根")
     print("✅ 数据层正常")

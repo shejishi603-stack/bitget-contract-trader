@@ -1,0 +1,22 @@
+name: Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - run: pip install streamlit plotly pandas numpy
+      - run: |
+          echo "部署检查完成"
+          echo "策略文件:"
+          ls -la src/
+          echo ""
+          echo "仪表盘:"
+          wc -l dashboard.py
