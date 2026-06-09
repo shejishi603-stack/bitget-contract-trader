@@ -1,7 +1,7 @@
 """
 合同交易策略引擎
 只做多 · 5倍杠杆 · 日线定方向 · 4h找结构
-基于 炒币的猫 交易系统 + OI/Vol 加分
+基于 南溪交易系统 + OI/Vol 加分
 """
 import pandas as pd
 import numpy as np
