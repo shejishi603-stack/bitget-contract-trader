@@ -1,0 +1,14 @@
+name: "trend-structure-bull"
+display_name: "趋势+结构抓住每一次主升浪"
+description: "南溪合约交易Agent（Track 1），基于南溪交易系统3.0构建只做多5x杠杆BTC/USDT永续Hybrid Trading Agent。核心闭环：4源并行感知（Bitget REST/K线/OI API + Skill Hub MCP）→ Qwen3.6-Plus深度推理 → 趋势通道（日线EMA32）+ MACD结构 + 底仓状态机交叉验证 → 融合决策执行 → 全链路JSONL日志审计。采用指标不可能三角理念，仓位权重30%底仓→50%满仓→减仓/清仓严格风控。2022-2025回测+335.4%。"
+market_type: "contract"
+trading_symbols: ["BTCUSDT"]
+decision_mode: "deterministic"
+backtest_support: "none"
+runtime_profile: "deterministic"
+execution_mode: "signal_only"
+follow_trade_supported: false
+strategy_config:
+  margin_budget: "100"
+  leverage: 5
+  ema_period: 32
