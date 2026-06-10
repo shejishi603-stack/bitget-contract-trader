@@ -276,18 +276,24 @@ def load_data():
         return df_daily, df_4h, df, signals, ticker, ta, oi_value, None
     except Exception as e:
         st.warning(f"⚠️ API连接失败(Clash可能未开启): {str(e)[:80]}")
-        # 返回空数据
+        # 返回空数据但页面不崩溃
         empty_df = pd.DataFrame()
         return empty_df, empty_df, empty_df, empty_df, {}, {}, 0, str(e)
 
+# 页面顶部数据源状态
 with st.spinner("Bitget Agent Hub 数据加载中..."):
     df_d, df_4h, df, signals, ticker, ta, oi_val, api_error = load_data()
-    if api_error or df_d.empty:
-        st.error("⚠️ 无法连接Bitget API，请确认Clash代理已开启。")
-        st.info("开启Clash后点击🔄刷新按钮。")
-        st.stop()
-    last = df.iloc[-1]
-    last_signal = signals[signals['action'] != '']
+
+# ═══════════════════════ 数据源状态横幅 ═══════════════════════
+if api_error or df_d.empty:
+    st.warning("⚠️ 无法连接Bitget API。仪表盘需要Clash代理访问Bitget数据。展示页数据为最近缓存。")
+    st.info("📡 数据来源: Bitget Agent Hub | 🧠 Skill Hub MCP | ⚡ 若数据为空请开启Clash后刷新")
+    st.stop()
+else:
+    st.success("📡 数据连接正常 | Bitget Agent Hub + Skill Hub MCP | 实时数据")
+st.markdown("---")
+last = df.iloc[-1] if not df.empty else {}
+last_signal = signals[signals['action'] != ''] if not signals.empty else pd.DataFrame()
 
 # ═══════════════════════ 比赛头部 ═══════════════════════
 st.markdown("""
