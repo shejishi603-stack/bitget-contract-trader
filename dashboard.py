@@ -597,59 +597,6 @@ with tab2:
 
     st.markdown("---")
 
-    # ── 近期回测（日线+4h完整版） ──
-    st.markdown("#### 📊 近期回测（日线+4h结构+OI，2025.11至今）")
-
-    with st.spinner("正在计算..."):
-        result = run_backtest(df, signals, initial=10000, leverage=5)
-
-    st.markdown(f'<span class="gray">{df["timestamp"].iloc[0]} ~ {df["timestamp"].iloc[-1]} · '
-                f'{(df["timestamp"].iloc[-1]-df["timestamp"].iloc[0]).days}天 · '
-                f'{len(result["trades"])}笔交易</span>',
-                unsafe_allow_html=True)
-
-    metrics = st.columns(6)
-    stats = result['stats']
-    for i, (label, key) in enumerate(zip(
-        ['收益率', '最大回撤', '夏普比率', '胜率', '交易数', '盈亏'],
-        ['总收益率', '最大回撤', '夏普比率', '胜率', '交易次数', '总盈亏']
-    )):
-        metrics[i].metric(label, stats.get(key, 'N/A'))
-
-    # 资金曲线
-    try:
-        import plotly.graph_objects as go
-        eq = result['equity_curve']
-        ts_list = [signals.iloc[i]['timestamp'] for i in range(len(eq))]
-        fig_eq = go.Figure()
-        fig_eq.add_trace(go.Scatter(
-            x=ts_list, y=eq, fill='tozeroy',
-            fillcolor='rgba(88,166,255,0.1)',
-            line=dict(color='#58a6ff', width=2), name='净值'))
-        fig_eq.add_hline(y=10000, line_dash='dash', line_color='#484f58',
-                        annotation_text='$10,000')
-        fig_eq.update_layout(
-            template='plotly_dark', paper_bgcolor='#0d1117',
-            plot_bgcolor='#0d1117', font_color='#8b949e',
-            height=280, margin=dict(l=0,r=0,t=10,b=10),
-            showlegend=False, yaxis_title='净值($)')
-        st.plotly_chart(fig_eq, use_container_width=True)
-    except:
-        pass
-
-    if result['trades']:
-        rows = []
-        total_pnl = 0
-        for i, t in enumerate(result['trades']):
-            total_pnl += t['pnl_pct']
-            rows.append({
-                '#': i+1, '入场': str(t['entry'])[:10], '出场': str(t['exit'])[:10],
-                '仓位': f"{t['size']*100:.0f}%",
-                '盈亏': f"{t['pnl_pct']:+.1f}%",
-                '原因': t['reason'][:25], '': '🟢' if t['pnl_pct']>0 else '🔴',
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
 # ═══════════════════════ 底部: 数据源 ═══════════════════════
 st.markdown("---")
 st.markdown("""
