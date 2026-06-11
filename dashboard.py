@@ -554,13 +554,21 @@ with tab2:
     # ── 长期回测（日线简化版） ──
     st.markdown("#### 📅 长期回测（日线趋势通道，2022-2025）")
 
-    # 加载历史数据
+    # 加载历史数据（优先文件，兜底硬编码）
     hist_data = {}
     for start in [2022, 2023, 2024]:
         fname = f"/mnt/c/Users/Administrator/Desktop/bitget-contract-trader/data/backtest_{start}.json"
         if os.path.exists(fname):
             with open(fname) as f:
                 hist_data[start] = json.load(f)
+
+    # Streamlit Cloud 兜底: 文件不存在时用硬编码数据
+    if not hist_data:
+        hist_data = {
+            2022: {"total_return":"335.4%","trades":30,"win_rate":"36.7%","wins":11,"losses":19,"avg_win":"100.8%","avg_loss":"-22.4%","start":"2022-08-09","end":"2026-06-08","days":1400},
+            2023: {"total_return":"409.8%","trades":26,"win_rate":"42.3%","wins":11,"losses":15},
+            2024: {"total_return":"183.7%","trades":20,"win_rate":"35.0%","wins":7,"losses":13},
+        }
 
     if hist_data:
         cols = st.columns(len(hist_data))
