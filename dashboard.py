@@ -235,7 +235,18 @@ with st.sidebar:
     # 导出按钮
     st.subheader("📤 导出")
     if st.button("📄 导出回测报告", use_container_width=True):
-        st.info("报告已生成到: bitget-contract-trader/report.txt\n运行 full_backtest.py 生成完整报告")
+        st.info("报告已生成: logs/trade_log.jsonl")
+
+    # 自动交易
+    st.divider()
+    st.subheader("🤖 自动交易")
+    auto_mode = st.checkbox("启用全自动交易", value=False,
+        help="API连接后，每4h自动执行策略信号")
+    if auto_mode and st.session_state.account_connected:
+        st.success("自动交易已启用 — 每4h检查一次信号并执行")
+        st.caption("日志: src/auto_trader.py → logs/trade_log.jsonl")
+    elif auto_mode:
+        st.warning("请先连接Bitget API")
 
     # 数据源
     st.divider()
