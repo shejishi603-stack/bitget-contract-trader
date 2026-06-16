@@ -67,6 +67,8 @@ class BitgetTrader:
 
     def get_balance(self):
         """查 USDT 余额"""
+        if self.demo:
+            return 1000.0  # 模拟盘固定余额
         result = self._request("GET", "/api/v2/account/all-account-balance")
         if result.get("code") == "00000":
             for acc in result.get("data", []):
@@ -82,8 +84,8 @@ class BitgetTrader:
             self._log("WARN", f"余额不足: {balance} USDT")
             return None
 
-        # 计算合约数量
-        margin = balance * size_pct * self.leverage
+        # 计算合约数量（保证金 = 仓位%，杠杆由交易所处理）
+        margin = balance * size_pct
         ticker = self._request("GET", f"/api/v2/mix/market/tickers?productType=USDT-FUTURES&symbol={self.symbol}")
         price = float(ticker.get("data", [{}])[0].get("lastPr", 0))
         if price <= 0:
