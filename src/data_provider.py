@@ -19,7 +19,7 @@ class BitgetDataProvider:
         self._on_cloud = "STREAMLIT_SERVER_PORT" in os.environ and not os.path.exists("/mnt/c")
         self.proxy_url = "http://172.30.112.1:7897"
 
-    def _request(self, url, timeout=10):
+    def _request(self, url, timeout=15):
         """双通道请求：先直连（Cloud），再代理（WSL）"""
         # 通道1: 直连（Streamlit Cloud在美国，不需要代理）
         try:
