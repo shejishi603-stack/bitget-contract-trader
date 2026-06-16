@@ -15,30 +15,31 @@ class BitgetDataProvider:
     def __init__(self):
         self._mcp_session = None
         self.source = "Bitget Agent Hub"
-        self._use_proxy = True
+        # 检测是否在Streamlit Cloud（有STREAMLIT_SERVER_PORT环境变量）
+        self._on_cloud = "STREAMLIT_SERVER_PORT" in os.environ and not os.path.exists("/mnt/c")
         self.proxy_url = "http://172.30.112.1:7897"
 
     def _request(self, url, timeout=10):
-        """双通道请求：先试代理，不行试直连"""
-        # 通道1: 走Clash代理
-        if self._use_proxy:
-            try:
-                ph = urllib.request.ProxyHandler(
-                    {"http": self.proxy_url, "https": self.proxy_url}
-                )
-                opener = urllib.request.build_opener(ph)
-                resp = opener.open(url, timeout=timeout)
-                return json.loads(resp.read())
-            except:
-                pass
-
-        # 通道2: datahub直连
+        """双通道请求：先直连（Cloud），再代理（WSL）"""
+        # 通道1: 直连（Streamlit Cloud在美国，不需要代理）
         try:
             resp = urllib.request.urlopen(url, timeout=timeout)
             return json.loads(resp.read())
         except:
             pass
 
+        # 通道2: 走Clash代理（WSL国内环境）
+        try:
+            ph = urllib.request.ProxyHandler(
+                {"http": self.proxy_url, "https": self.proxy_url}
+            )
+            opener = urllib.request.build_opener(ph)
+            resp = opener.open(url, timeout=timeout)
+            return json.loads(resp.read())
+        except:
+            pass
+
+        # 通道3: datahub兜底
         return None
 
     def get_ticker(self, symbol="BTCUSDT"):
