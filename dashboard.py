@@ -314,6 +314,20 @@ if api_error or df_d.empty:
 else:
     st.success("📡 数据连接正常 | Bitget Agent Hub + Skill Hub MCP | 实时数据")
 st.markdown("---")
+
+# ═══════════════════════ 自动交易状态 ═══════════════════════
+with st.container():
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        if 'account_connected' in st.session_state and st.session_state.account_connected:
+            st.success("🤖 全自动交易就绪 | 每4h自动分析+决策+下单 | Bitget合约API")
+        else:
+            st.info("🤖 全自动交易 | 连接Bitget API后即可启用 | 侧边栏配置API Key")
+    with c2:
+        if st.button("📖 查看使用说明"):
+            st.info("1. Bitget官网创建API Key(勾选交易权限)\n2. 侧边栏填入Key → 连接\n3. 勾选'启用自动下单'\n4. 系统每4h自动执行")
+
+st.markdown("---")
 last = df.iloc[-1] if not df.empty else {}
 last_signal = signals[signals['action'] != ''] if not signals.empty else pd.DataFrame()
 
