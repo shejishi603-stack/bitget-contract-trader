@@ -1,0 +1,40 @@
+**第一段 · 思路**
+
+加密市场 7×24 小时运行，散户不可能一直盯盘。传统量化依赖预设规则，遇到突发行情或极端波动时，规则往往过于僵化；而纯 LLM 交易又存在幻觉风险，缺乏纪律。
+
+「南溪合约交易Agent」的核心逻辑是：**规则引擎保证纪律，LLM 提供弹性**。感知层从 4 个数据源并行采集——Bitget REST API 实时行情、Bitget 合约 API 的 OI 持仓量、K 线数据、以及 Bitget Skill Hub（MCP）的 RSI/MACD/布林带技术分析。决策层采用「EMA32 趋势通道定方向 + 4h MACD 底/顶结构找时机 + OI/Vol 确认」的规则引擎，同时用 Qwen3.6-Plus LLM 做多源数据综合分析。两者一致时高置信度执行，冲突时降仓或观望。
+
+交易标的为 BTC/USDT 永续合约，只做多，固定 5x 杠杆。仓位管理采用 3.0 底仓思维：日线翻多先建 30% 底仓，站稳后加仓至 50%，顶结构或止盈减至 30%。风控设计多重止损：日线趋势翻空全平、100% 收益锁 30% 利润、MACD 钝化消失止损。
+
+**第二段 · 完成度**
+
+已实现的功能：
+- ✅ 感知层：Bitget REST API + 合约 OI + Skill Hub MCP 四源并行数据采集，三级容错（直连→代理→MCP 兜底）+ 自动重试
+- ✅ 策略层：完整状态机引擎（NO_POSITION → LONG_BASE → LONG_FULL → LONG_REDUCED → LONG_TRIAL → FLAT），2022-2025 回测 +335.4%
+- ✅ 执行层：Bitget 合约 API 下单，支持实盘和模拟盘（X-SIMULATED-Trading），带数据完整性检查和余额验证
+- ✅ AI 决策层：Qwen LLM 推理 + JSON 决策输出 + 完整思考链日志记录
+- ✅ Streamlit 仪表盘：实时行情、趋势通道图、MACD 指标、交易信号面板、AI 决策日志、资金曲线
+- ✅ Paper Trading：7 条真实交易记录（开仓→止盈→再开仓），含时间戳/价格/数量/余额变化
+
+使用了 Bitget AI 工具：Agent Hub（REST API / 合约 API / Skill Hub MCP）、Playbook（策略部署）、通义千问 Qwen3.6-Plus（LLM 推理）。
+
+遇到的问题：WSL 环境下 Bitget API 的 Cloudflare CDN 被 GFW 拦截，通过 Windows urllib 直连 + 国内 datahub MCP 兜底解决。Streamlit Cloud 部署后 Bitget API 从美国服务器被 geo-restrict，通过 API 失败时自动 fallback 到 MCP 兜底数据。
+
+尚未实现：LLM 推理与执行层完全打通（当前 LLM 辅助验证，规则引擎主导执行）、多币种支持。
+下一步计划：打通 LLM 直接驱动下单、接入链上数据（鲸鱼动向/ETF 流量）、支持自然语言策略调整。
+
+**第三段 · 对 AI Trading 的看法**
+
+传统量化交易和 AI Agent 不是替代关系，而是互补。规则的确定性加上 LLM 的灵活性，才是 Agentic Trading 的最优解。
+
+使用 Bitget AI 工具的体验：Agent Hub 的 Skill Hub MCP 让技术指标接入变得非常简单，几行代码就能拿到 RSI/MACD/布林带；Playbook 的自然语言策略生成降低了量化门槛。建议改进：模拟盘 API 下单功能需要完善，目前只能通过 Header 标记模拟模式，没有独立的沙箱环境。
+
+Agentic Trading 方向的判断：第一批真正自主运行的交易 Agent 正在被写出来。但最大的挑战不是技术，而是信任——如何让交易者相信 AI 的决策是可审计、可解释、可追溯的。南溪的方案是：每一笔决策都记录完整的推理链（LLM reasoning chain + 规则引擎信号 + MCP 调用日志），让 AI 的"思考过程"透明化。这可能是 Agentic Trading 时代的第一批基础设施。
+
+---
+
+🔗 Demo: https://bitget-contract-trader-jvffadtjuubrzdceuvdxmh.streamlit.app
+📊 展示页: https://shejishi603-stack.github.io/bitget-contract-trader/
+🐙 代码: https://github.com/shejishi603-stack/bitget-contract-trader
+🎬 视频: https://x.com/nan8938/status/2064270211151470900
+#BitgetHackathon

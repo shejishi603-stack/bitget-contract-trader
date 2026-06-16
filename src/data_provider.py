@@ -1,14 +1,16 @@
 """
-Bitget Agent Hub 数据提供层（双通道容错版）
+Bitget Agent Hub 数据提供层（双通道容错版 + 重试）
 通道1: Bitget REST API (需Clash代理)
 通道2: datahub.noxiaohao.com MCP (国内直连)
 自动切换，哪个通就用哪个
 """
-import json, urllib.request, subprocess, re, os
+import json, urllib.request, subprocess, re, os, time
 import pandas as pd
 import numpy as np
 
 DATAHUB = "https://datahub.noxiaohao.com/mcp"
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # 秒
 
 
 class BitgetDataProvider:
@@ -20,26 +22,27 @@ class BitgetDataProvider:
         self.proxy_url = "http://172.30.112.1:7897"
 
     def _request(self, url, timeout=15):
-        """双通道请求：先直连（Cloud），再代理（WSL）"""
-        # 通道1: 直连（Streamlit Cloud在美国，不需要代理）
-        try:
-            resp = urllib.request.urlopen(url, timeout=timeout)
-            return json.loads(resp.read())
-        except:
-            pass
+        """带重试的双通道请求：先直连/代理，再datahub兜底"""
+        last_err = None
 
-        # 通道2: 走Clash代理（WSL国内环境）
-        try:
-            ph = urllib.request.ProxyHandler(
-                {"http": self.proxy_url, "https": self.proxy_url}
-            )
-            opener = urllib.request.build_opener(ph)
-            resp = opener.open(url, timeout=timeout)
-            return json.loads(resp.read())
-        except:
-            pass
+        for attempt in range(MAX_RETRIES):
+            # 通道1: 在Cloud上直连，在WSL走代理
+            try:
+                if self._on_cloud:
+                    resp = urllib.request.urlopen(url, timeout=timeout)
+                else:
+                    ph = urllib.request.ProxyHandler(
+                        {"http": self.proxy_url, "https": self.proxy_url}
+                    )
+                    opener = urllib.request.build_opener(ph)
+                    resp = opener.open(url, timeout=timeout)
+                return json.loads(resp.read())
+            except Exception as e:
+                last_err = e
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY * (attempt + 1))
 
-        # 通道3: datahub兜底
+        # 所有通道失败 → datahub兜底
         return None
 
     def get_ticker(self, symbol="BTCUSDT"):
@@ -116,22 +119,33 @@ class BitgetDataProvider:
         return 0
 
     def _mcp_call(self, method, params):
-        """调用datahub MCP服务"""
-        import subprocess, re
+        """调用datahub MCP服务（用urllib替代subprocess+curl，避免shell注入）"""
+        import urllib.request
 
         if not self._mcp_session:
-            cmd = (
-                f'curl -s --noproxy "*" -D- --max-time 10 '
-                f'-X POST "{DATAHUB}" -H "Content-Type: application/json" '
-                f'-H "Accept: application/json, text/event-stream" '
-                f'-d \'{{"jsonrpc":"2.0","id":1,"method":"initialize",'
-                f'"params":{{"protocolVersion":"2024-11-05","capabilities":{{}},'
-                f'"clientInfo":{{"name":"trader","version":"1.0"}}}}}}\''
+            init_body = json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "trader", "version": "1.0"}
+                }
+            }).encode()
+            req = urllib.request.Request(
+                DATAHUB, data=init_body,
+                headers={"Content-Type": "application/json",
+                         "Accept": "application/json, text/event-stream"},
+                method="POST"
             )
-            out = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
-            sid = re.search(r'mcp-session-id:\s*(\S+)', out.stdout, re.IGNORECASE)
-            if sid:
-                self._mcp_session = sid.group(1)
+            try:
+                # datahub 国内直连，不用代理
+                resp = urllib.request.urlopen(req, timeout=15)
+                # 从响应头获取 session id
+                sid = resp.headers.get('mcp-session-id') or resp.headers.get('Mcp-Session-Id')
+                if sid:
+                    self._mcp_session = sid
+            except Exception:
+                pass
 
         if not self._mcp_session:
             return None
@@ -139,24 +153,30 @@ class BitgetDataProvider:
         body = json.dumps({
             "jsonrpc": "2.0", "id": 2, "method": "tools/call",
             "params": {"name": method, "arguments": params}
-        })
-        cmd2 = (
-            f'curl -s --noproxy "*" --max-time 20 '
-            f'-X POST "{DATAHUB}" -H "Content-Type: application/json" '
-            f'-H "Accept: application/json, text/event-stream" '
-            f'-H "Mcp-Session-Id: {self._mcp_session}" '
-            f"-d '{body}'"
+        }).encode()
+        req = urllib.request.Request(
+            DATAHUB, data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "Mcp-Session-Id": self._mcp_session,
+            },
+            method="POST"
         )
-        out2 = subprocess.run(cmd2, shell=True, capture_output=True, text=True, timeout=25)
-        for line in out2.stdout.split("\n"):
-            if line.startswith("data: "):
-                result = json.loads(line[6:])
-                content = result.get("result", {}).get("content", [{}])
-                text = content[0].get("text", "{}")
-                try:
-                    return json.loads(text)
-                except:
-                    return {"raw": text}
+        try:
+            resp = urllib.request.urlopen(req, timeout=20)
+            text = resp.read().decode()
+            for line in text.split("\n"):
+                if line.startswith("data: "):
+                    result = json.loads(line[6:])
+                    content = result.get("result", {}).get("content", [{}])
+                    content_text = content[0].get("text", "{}")
+                    try:
+                        return json.loads(content_text)
+                    except:
+                        return {"raw": content_text}
+        except Exception:
+            pass
         return None
 
     def get_technical_analysis(self, symbol="BTC/USDT", timeframe="4h",

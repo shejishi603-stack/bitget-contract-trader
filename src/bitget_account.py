@@ -38,16 +38,19 @@ class BitgetAccount:
     def _headers(self, method, path, body=""):
         timestamp = str(int(time.time()))
         sign = self._sign(timestamp, method, path, body)
-        return {
+        headers = {
             "ACCESS-KEY": self.api_key,
             "ACCESS-SIGN": sign,
             "ACCESS-TIMESTAMP": timestamp,
             "ACCESS-PASSPHRASE": self.passphrase,
             "Content-Type": "application/json",
         }
+        if self.demo:
+            headers["X-SIMULATED-Trading"] = "1"  # 模拟盘标记
+        return headers
 
     def _request(self, method, path, body=None):
-        """发送签名请求"""
+        """发送签名请求（带重试）"""
         body_str = json.dumps(body) if body else ""
         url = self.base_url + path
         headers = self._headers(method, path, body_str)
@@ -59,8 +62,18 @@ class BitgetAccount:
             {"http": self.proxy, "https": self.proxy}
         )
         opener = urllib.request.build_opener(proxy_handler)
-        resp = opener.open(req, timeout=15)
-        return json.loads(resp.read())
+
+        # 最多重试3次，指数退避
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = opener.open(req, timeout=15)
+                return json.loads(resp.read())
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(2 * (attempt + 1))
+        return {"code": "99999", "msg": f"请求失败(3次重试后): {str(last_err)[:80]}"}
 
     def test_connection(self):
         """测试API Key是否有效"""

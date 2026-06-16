@@ -34,21 +34,36 @@ class BitgetTrader:
 
     def _headers(self, method, path, body=""):
         ts = str(int(time.time()))
-        return {
+        headers = {
             "ACCESS-KEY": self.api_key,
             "ACCESS-SIGN": self._sign(ts, method, path, body),
             "ACCESS-TIMESTAMP": ts,
             "ACCESS-PASSPHRASE": self.passphrase,
             "Content-Type": "application/json",
         }
+        if self.demo:
+            headers["X-SIMULATED-Trading"] = "1"  # 模拟盘标记
+        return headers
 
     def _request(self, method, path, body=None):
+        """带重试的签名请求"""
         body_str = json.dumps(body) if body else ""
         url = self.base + path
         req = urllib.request.Request(url, data=body_str.encode() if body_str else None, 
                                      headers=self._headers(method, path, body_str), method=method)
         ph = urllib.request.ProxyHandler({"http": self.proxy, "https": self.proxy})
-        return json.loads(urllib.request.build_opener(ph).open(req, timeout=15).read())
+        opener = urllib.request.build_opener(ph)
+
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = opener.open(req, timeout=15)
+                return json.loads(resp.read())
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(2 * (attempt + 1))
+        return {"code": "99999", "msg": f"请求失败(3次重试): {str(last_err)[:80]}"}
 
     def get_position(self):
         """查当前持仓"""
@@ -144,42 +159,85 @@ class BitgetTrader:
         print(f"[{level}] {msg}")
 
     def execute(self):
-        """主循环：读取信号 → 执行交易"""
+        """主循环：读取信号 → 执行交易（带安全防护）"""
         print(f"\n{'='*50}")
         print(f"[{datetime.now().strftime('%H:%M:%S')}] 自动交易检查")
         print(f"{'='*50}")
 
-        # 1. 读策略信号
-        provider = BitgetDataProvider()
-        daily = provider.get_klines("BTCUSDT", "1day", 200)
-        h4 = provider.get_klines("BTCUSDT", "4h", 200)
-        daily = trend_channel(daily)
-        h4 = macd_structure(h4)
-        h4 = oi_signal(h4)
-        df = merge_daily_4h(daily, h4)
-        signals, _ = generate_signals(df)
+        # 1. 读策略信号（带异常捕获）
+        try:
+            provider = BitgetDataProvider()
+            daily = provider.get_klines("BTCUSDT", "1day", 200)
+            h4 = provider.get_klines("BTCUSDT", "4h", 200)
+        except Exception as e:
+            self._log("ERROR", f"数据获取失败: {e}")
+            return
+
+        # 数据完整性检查
+        if daily.empty or len(daily) < 50:
+            self._log("ERROR", f"日线数据不足({len(daily)}根 < 50)，跳过本次执行")
+            return
+        if h4.empty or len(h4) < 20:
+            self._log("ERROR", f"4h数据不足({len(h4)}根 < 20)，跳过本次执行")
+            return
+
+        try:
+            daily = trend_channel(daily)
+            h4 = macd_structure(h4)
+            h4 = oi_signal(h4)
+            df = merge_daily_4h(daily, h4)
+            signals, _ = generate_signals(df)
+        except Exception as e:
+            self._log("ERROR", f"信号计算失败: {e}")
+            return
+
         last = df.iloc[-1]
         state = last.get("state", "NO_POSITION")
         target_pos = last.get("position", 0)
 
         # 2. 查当前持仓
-        pos = self.get_position()
-        current_size = pos["size"]
+        try:
+            pos = self.get_position()
+        except Exception as e:
+            self._log("ERROR", f"查询持仓失败: {e}")
+            return
 
+        current_size = pos["size"]
         print(f"  策略信号: {state} → 目标仓位 {target_pos*100:.0f}%")
         print(f"  当前持仓: {current_size:.3f}BTC ({pos['pnl']:.2f}USDT)")
 
         # 3. 执行
         if state in ("LONG_BASE", "LONG_FULL", "LONG_TRIAL", "LONG_REDUCED"):
             if current_size <= 0:
-                self.place_order("buy", target_pos)
-                self._log("TRADE", f"开仓 {target_pos*100:.0f}%")
-            elif abs(target_pos * 100 - current_size / self.get_balance() * 100) > 10:
-                self._log("INFO", f"仓位差异较大，需调整")
-        elif state == "NO_POSITION" or state == "FLAT":
+                # 安全防护：检查余额
+                balance = self.get_balance()
+                if balance <= 0:
+                    self._log("ERROR", "余额为0，拒绝下单")
+                    return
+                result = self.place_order("buy", target_pos)
+                if result:
+                    self._log("TRADE", f"开仓 {target_pos*100:.0f}%")
+                else:
+                    self._log("ERROR", "下单失败")
+            else:
+                # 已有持仓，检查是否需要调整
+                try:
+                    balance = self.get_balance()
+                    price = float(last['close'])
+                    current_pct = (current_size * price) / (balance * self.leverage) if balance > 0 else 0
+                    diff = abs(target_pos - current_pct)
+                    if diff > 0.10:  # 差异超过10%才调整
+                        self._log("INFO", f"仓位差异{diff*100:.0f}%，需调整")
+                        # TODO: 调整仓位逻辑（减仓/加仓）
+                except Exception as e:
+                    self._log("WARN", f"仓位计算失败: {e}")
+        elif state in ("NO_POSITION", "FLAT"):
             if current_size > 0:
-                self.close_all()
-                self._log("TRADE", "平仓")
+                result = self.close_all()
+                if result:
+                    self._log("TRADE", "平仓")
+                else:
+                    self._log("WARN", "平仓失败或无持仓")
 
 
 if __name__ == "__main__":

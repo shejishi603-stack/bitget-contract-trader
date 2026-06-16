@@ -11,6 +11,9 @@ QWEN_MODEL = "qwen3.6-plus"
 
 def qwen_chat(prompt, system=None, max_tokens=300):
     """调用千问API（curl方式，Clash TUN兼容）"""
+    if not QWEN_KEY:
+        return None  # 无API Key时直接返回，不浪费时间
+
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -23,20 +26,20 @@ def qwen_chat(prompt, system=None, max_tokens=300):
         "max_tokens": max_tokens,
     })
 
-    # 用curl（直连，TUN模式自动路由）
     curl_cmd = [
         "curl", "-s", "--noproxy", "*", "--max-time", "40",
         "-X", "POST", QWEN_URL,
         "-H", "Content-Type: application/json",
         "-H", f"Authorization: Bearer {QWEN_KEY}",
-        "-d", body,
     ]
 
     try:
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=25)
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=50)
+        if result.returncode != 0:
+            return None
         data = json.loads(result.stdout)
         return data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
+    except Exception:
         return None
 
 
