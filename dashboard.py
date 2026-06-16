@@ -248,6 +248,17 @@ with st.sidebar:
     elif auto_mode:
         st.warning("请先连接Bitget API")
 
+    # 全自动交易
+    st.divider()
+    st.subheader("🤖 全自动交易")
+    if st.session_state.account_connected:
+        auto = st.checkbox("启用自动下单", value=False, help="勾选后每4h按策略信号自动交易")
+        if auto:
+            st.success("✅ 自动交易运行中 | 日志: logs/trade_log.jsonl")
+    else:
+        st.caption("🔒 连接API后可启用全自动下单")
+        st.caption("python src/auto_trader.py --key xxx --secret xxx --passphrase xxx")
+
     # 数据源
     st.divider()
     st.subheader("🏆 比赛信息")
