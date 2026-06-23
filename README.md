@@ -13,7 +13,7 @@ pinned: false
 
 > 赛道一 · 交易 Agent — 自主感知 → LLM推理 → 规则决策 → 合约执行 → 风控闭环
 
-[🎯 在线 Demo](https://bitget-contract-trader-jvffadtjuubrzdceuvdxmh.streamlit.app) | [📊 展示页](https://shejishi603-stack.github.io/bitget-contract-trader/) | [🧠 决策证据](logs/agent_evidence.md) | [🎬 Demo视频](https://x.com/nan8938/status/2064270211151470900)
+[🔗 在线体验（公开）](https://dgfghfgh-bitget-contract-trader.hf.space) | [🎯 Streamlit](https://bitget-contract-trader-jvffadtjuubrzdceuvdxmh.streamlit.app) | [📊 展示页](https://shejishi603-stack.github.io/bitget-contract-trader/) | [🧠 决策证据](logs/agent_evidence.md) | [🎬 Demo视频](https://x.com/nan8938/status/2064270211151470900)
 
 ---
 
